@@ -1,40 +1,50 @@
 use std::path::Path;
 use std::process::Command;
 
-/// A complete, self-contained description of how to handle a programming language.
-/// This is pure data — no methods on this type. All behaviour lives in the free
-/// functions below (find_language, detect_language, resolve_command).
-#[allow(dead_code)] // `extension` is kept for future use (file pickers, display, etc.)
+// This struct holds everything we need to know about one programming language.
+// Think of it like a row in a spreadsheet - each field is a column.
+// We never need to change this struct to add a new language, we just add a new row below.
+#[allow(dead_code)] // extension is kept for possible future use (file pickers etc.)
 pub struct LanguageConfig {
-    /// Canonical name used in the config file and CLI (e.g. "cpp", "python")
+    // the short name used on the command line, e.g. "cpp", "python"
     pub name: &'static str,
-    /// Human-readable label shown in terminal output
+
+    // what we show the user in terminal output
     pub display_name: &'static str,
-    /// Alternative names the user may type (e.g. "c++", "py")
+
+    // other names the user might type for this language
+    // e.g. "c++" and "cc" both map to "cpp"
     pub aliases: &'static [&'static str],
-    /// File extension without the dot (e.g. "cpp", "py")
+
+    // the file extension without the dot, e.g. "cpp", "py"
     pub extension: &'static str,
-    /// Exact filename created inside the problem directory
+
+    // the actual filename we create in the problem folder
+    // java is special because the class name must match the filename
     pub solution_file: &'static str,
-    /// Boilerplate starter code written when a problem is received
+
+    // the starter code we write when a new problem arrives
     pub template: &'static str,
-    /// Compilation command template.
-    ///   None  => interpreted language, skip compile step entirely.
-    ///   Some  => list of args; supports placeholders {file}, {bin}, {dir}.
+
+    // the command to compile the solution
+    // None means the language is interpreted and has no compile step (like Python)
+    // the strings can contain {file}, {bin}, {dir} which get replaced with real paths at runtime
     pub compile_cmd: Option<&'static [&'static str]>,
-    /// Execution command template. Supports the same placeholders.
+
+    // the command to actually run the solution
+    // same {file}, {bin}, {dir} placeholders work here too
     pub run_cmd: &'static [&'static str],
-    /// Name of the compiled artifact placed in the problem directory.
-    /// Usually "solution", but "solution.jar" for Kotlin, etc.
+
+    // name of the compiled output file placed in the problem folder
+    // usually just "solution", but Kotlin produces "solution.jar"
     pub bin_name: &'static str,
 }
 
-// ─── Language table ───────────────────────────────────────────────────────────
-// To add a new language: append one LanguageConfig block below. Nothing else
-// in the codebase needs to change.
-
+// This is the full language table.
+// To add a new language, just copy one of these blocks and fill in the details.
+// Nothing else in the codebase needs to change.
 pub static LANGUAGES: &[LanguageConfig] = &[
-    // ── C++ ──────────────────────────────────────────────────────────────────
+    // C++ - the most common language in competitive programming
     LanguageConfig {
         name:          "cpp",
         display_name:  "C++ (g++, C++17)",
@@ -56,7 +66,7 @@ int main() {
         bin_name:    "solution",
     },
 
-    // ── C ────────────────────────────────────────────────────────────────────
+    // C - slightly lower level than C++, still popular
     LanguageConfig {
         name:          "c",
         display_name:  "C (gcc, C11)",
@@ -77,7 +87,7 @@ int main() {
         bin_name:    "solution",
     },
 
-    // ── Python ───────────────────────────────────────────────────────────────
+    // Python - no compilation needed, runs directly
     LanguageConfig {
         name:          "python",
         display_name:  "Python (python3)",
@@ -93,18 +103,18 @@ def main():
 if __name__ == "__main__":
     main()
 "#,
-        compile_cmd: None,
+        compile_cmd: None, // interpreted, skip compile step
         run_cmd:     &["python3", "{file}"],
         bin_name:    "solution",
     },
 
-    // ── Java ─────────────────────────────────────────────────────────────────
+    // Java - note: the file must be named Main.java because the class is called Main
     LanguageConfig {
         name:          "java",
         display_name:  "Java (javac + JVM)",
         aliases:       &[],
         extension:     "java",
-        solution_file: "Main.java",     // Java class name must match filename
+        solution_file: "Main.java",
         template: r#"import java.util.*;
 import java.io.*;
 
@@ -120,7 +130,7 @@ public class Main {
         bin_name:    "solution",
     },
 
-    // ── Rust ─────────────────────────────────────────────────────────────────
+    // Rust - compiled language, fast but stricter than C++
     LanguageConfig {
         name:          "rust",
         display_name:  "Rust (rustc)",
@@ -145,7 +155,7 @@ fn main() {
         bin_name:    "solution",
     },
 
-    // ── Go ───────────────────────────────────────────────────────────────────
+    // Go - interpreted via "go run", no separate compile step needed
     LanguageConfig {
         name:          "go",
         display_name:  "Go (go run)",
@@ -172,12 +182,12 @@ func main() {
     _ = reader
 }
 "#,
-        compile_cmd: None,
+        compile_cmd: None, // "go run" handles compilation internally
         run_cmd:     &["go", "run", "{file}"],
         bin_name:    "solution",
     },
 
-    // ── JavaScript (Node.js) ─────────────────────────────────────────────────
+    // JavaScript - runs with Node.js, no compilation needed
     LanguageConfig {
         name:          "javascript",
         display_name:  "JavaScript (Node.js)",
@@ -195,12 +205,12 @@ rl.on('close', () => {
     void next;
 });
 "#,
-        compile_cmd: None,
+        compile_cmd: None, // interpreted, skip compile step
         run_cmd:     &["node", "{file}"],
         bin_name:    "solution",
     },
 
-    // ── Kotlin ───────────────────────────────────────────────────────────────
+    // Kotlin - compiles to a .jar file, then run with java -jar
     LanguageConfig {
         name:          "kotlin",
         display_name:  "Kotlin (kotlinc + JVM)",
@@ -214,51 +224,76 @@ fun main() {
 
 }
 "#,
-        // kotlinc outputs a fat JAR; bin_name reflects that
         compile_cmd: Some(&["kotlinc", "{file}", "-include-runtime", "-d", "{bin}"]),
         run_cmd:     &["java", "-jar", "{bin}"],
-        bin_name:    "solution.jar",
+        bin_name:    "solution.jar", // kotlin outputs a jar, not a plain binary
     },
 ];
 
-// ─── Free functions ───────────────────────────────────────────────────────────
-
-/// Find a language by name or alias (case-insensitive).
-/// Returns None if no match is found — callers decide how to handle that.
+// looks up a language by name or alias
+// the search is case-insensitive, so "CPP" and "cpp" both work
 pub fn find_language(name: &str) -> Option<&'static LanguageConfig> {
     let lower = name.to_lowercase();
-    LANGUAGES
-        .iter()
-        .find(|l| l.name == lower || l.aliases.contains(&lower.as_str()))
+
+    for lang in LANGUAGES {
+        // check the main name first
+        if lang.name == lower {
+            return Some(lang);
+        }
+
+        // check any aliases (e.g. "c++" is an alias for "cpp")
+        for alias in lang.aliases {
+            if *alias == lower {
+                return Some(lang);
+            }
+        }
+    }
+
+    // no match found
+    None
 }
 
-/// Scan a problem directory for a known solution file and return the matching
-/// language config. Returns the first match in LANGUAGES order (C++ wins ties).
+// looks inside a problem directory to figure out which language was used
+// it does this by checking which solution file exists (solution.cpp, solution.py, etc.)
 pub fn detect_language(problem_dir: &Path) -> Option<&'static LanguageConfig> {
-    LANGUAGES
-        .iter()
-        .find(|l| problem_dir.join(l.solution_file).exists())
+    for lang in LANGUAGES {
+        let solution_path = problem_dir.join(lang.solution_file);
+        if solution_path.exists() {
+            return Some(lang);
+        }
+    }
+
+    // none of the known solution files were found
+    None
 }
 
-/// Substitute {file}, {bin}, {dir} placeholders in a command template and
-/// return a ready-to-spawn Command. The first element is the executable name.
+// takes a command template like ["g++", "{file}", "-o", "{bin}"]
+// and fills in the real file paths before returning a ready-to-run Command
 pub fn resolve_command(template: &[&str], file: &Path, bin: &Path, dir: &Path) -> Command {
-    let file_str = file.to_string_lossy().to_string();
-    let bin_str  = bin.to_string_lossy().to_string();
-    let dir_str  = dir.to_string_lossy().to_string();
+    // rule 3: convert each path in two steps - lossy first, then to owned String
+    let file_lossy = file.to_string_lossy();
+    let file_str   = file_lossy.to_string();
 
-    let resolved: Vec<String> = template
-        .iter()
-        .map(|&arg| {
-            arg.replace("{file}", &file_str)
-               .replace("{bin}",  &bin_str)
-               .replace("{dir}",  &dir_str)
-        })
-        .collect();
+    let bin_lossy = bin.to_string_lossy();
+    let bin_str   = bin_lossy.to_string();
 
+    let dir_lossy = dir.to_string_lossy();
+    let dir_str   = dir_lossy.to_string();
+
+    // go through each word in the template and replace the placeholders with real paths
+    let mut resolved: Vec<String> = Vec::new();
+    for arg in template {
+        // rule 4: do each replacement on a separate line, not chained
+        let step1 = arg.replace("{file}", &file_str);
+        let step2 = step1.replace("{bin}",  &bin_str);
+        let filled = step2.replace("{dir}",  &dir_str);
+        resolved.push(filled);
+    }
+
+    // the first word is the program to run, everything after it are the arguments
     let mut cmd = Command::new(&resolved[0]);
-    if resolved.len() > 1 {
-        cmd.args(&resolved[1..]);
+    for arg in &resolved[1..] {
+        cmd.arg(arg);
     }
     cmd
 }

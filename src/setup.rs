@@ -5,7 +5,10 @@ use colored::*;
 use crate::config::save_default_language;
 use crate::language::{find_language, LANGUAGES};
 
+// installs the CPH tasks into Zed's global tasks.json
+// after running this, you'll see "CPH: Start Listener" and "CPH: Run Tests" in Zed's command palette
 pub fn setup_zed_tasks() {
+    // the JSON we'll write into Zed's tasks file
     let tasks_json = r#"[
   {
     "label": "CPH: Start Listener",
@@ -25,19 +28,24 @@ pub fn setup_zed_tasks() {
     let config_dir = zed_config_dir();
     let tasks_path = config_dir.join("tasks.json");
 
+    // make sure the Zed config folder exists
     if let Err(e) = fs::create_dir_all(&config_dir) {
         eprintln!("{} Could not create Zed config dir: {}", "Error:".red().bold(), e);
         return;
     }
 
+    // if tasks.json already exists, don't overwrite it - just print what to add manually
     if tasks_path.exists() {
-        println!("{} {} already exists. Skipping to avoid overwriting your tasks.",
-            "Warning:".yellow().bold(), tasks_path.display());
+        println!(
+            "{} {} already exists. Skipping to avoid overwriting your tasks.",
+            "Warning:".yellow().bold(), tasks_path.display()
+        );
         println!("Manually add the following to {}:", tasks_path.display());
         println!("{}", tasks_json);
         return;
     }
 
+    // write the tasks file
     match fs::write(&tasks_path, tasks_json) {
         Ok(_) => {
             println!("{} Zed tasks installed to {}", "Done:".green().bold(), tasks_path.display());
@@ -49,21 +57,26 @@ pub fn setup_zed_tasks() {
     }
 }
 
+// returns the path to Zed's config directory
+// checks XDG_CONFIG_HOME first, then falls back to ~/.config/zed
 fn zed_config_dir() -> PathBuf {
     if let Ok(xdg_config) = std::env::var("XDG_CONFIG_HOME") {
-        PathBuf::from(xdg_config).join("zed")
-    } else if let Ok(home) = std::env::var("HOME") {
-        PathBuf::from(home).join(".config").join("zed")
-    } else {
-        PathBuf::from(".")
+        return PathBuf::from(xdg_config).join("zed");
     }
+    if let Ok(home) = std::env::var("HOME") {
+        return PathBuf::from(home).join(".config").join("zed");
+    }
+    PathBuf::from(".")
 }
 
-// ─── set-lang ────────────────────────────────────────────────────────────────
-
+// sets the default language for all future problems
+// e.g. "cph-engine set-lang python" will make new problems create solution.py
 pub fn set_language(lang_str: &str) {
-    match find_language(lang_str) {
+    let found = find_language(lang_str);
+
+    match found {
         Some(lang) => {
+            // save the language name to disk so it persists between sessions
             save_default_language(lang.name);
             println!(
                 "{} Default language set to {}",
@@ -73,12 +86,18 @@ pub fn set_language(lang_str: &str) {
             println!("New problems will create: {}", lang.solution_file.yellow());
         }
         None => {
+            // the user typed something we don't recognise - show the full list
             eprintln!("{} Unknown language \"{}\"\n", "Error:".red().bold(), lang_str);
             eprintln!("Supported languages:");
+
             for l in LANGUAGES {
-                let all_names: Vec<&str> = std::iter::once(l.name)
-                    .chain(l.aliases.iter().copied())
-                    .collect();
+                // build a comma-separated list of the name and all its aliases
+                let mut all_names: Vec<&str> = Vec::new();
+                all_names.push(l.name);
+                for alias in l.aliases {
+                    all_names.push(alias);
+                }
+
                 eprintln!("  {:<32} {}", all_names.join(", "), l.display_name);
             }
         }
