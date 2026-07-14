@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use colored::*;
 
 use crate::models::Problem;
-use crate::config::{load_problems_root, save_problems_root, save_last_problem};
+use crate::config::{load_problems_root, save_problems_root, save_last_problem, load_default_language};
 
 pub async fn serve(port: u16) {
     // Remember where problems will be saved so `run` can find them later
@@ -58,13 +58,13 @@ async fn receive_problem(Json(problem): Json<Problem>) {
     // Track this as the latest problem
     save_last_problem(&base_dir);
 
-    // solution.cpp starter
-    let starter_file = base_dir.join("solution.cpp");
+    // Starter solution file — use the user's configured default language
+    let lang = load_default_language();
+    let starter_file = base_dir.join(lang.solution_file);
     if !starter_file.exists() {
-        let template = "#include <iostream>\nusing namespace std;\n\nint main() {\n    \n    return 0;\n}\n";
-        match fs::write(&starter_file, template) {
-            Ok(_)  => println!(" Created: {}", starter_file.display()),
-            Err(e) => eprintln!("{} {}", "Failed to write solution.cpp:".red(), e),
+        match fs::write(&starter_file, lang.template) {
+            Ok(_)  => println!(" Created: {} ({})", starter_file.display(), lang.display_name),
+            Err(e) => eprintln!("{} {}", "Failed to write solution file:".red(), e),
         }
     }
 

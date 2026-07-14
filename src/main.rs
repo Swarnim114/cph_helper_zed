@@ -1,4 +1,5 @@
 mod config;
+mod language;
 mod models;
 mod runner;
 mod server;
@@ -34,6 +35,17 @@ enum Commands {
     },
     /// Install CPH tasks into Zed's global tasks.json
     Setup,
+    /// Set the default language for new problems.
+    ///
+    /// Examples:
+    ///   cph-engine set-lang python
+    ///   cph-engine set-lang cpp
+    ///   cph-engine set-lang rust
+    #[command(name = "set-lang")]
+    SetLang {
+        /// Language name or alias (cpp, c++, python, py, java, rust, go, js, kotlin, ...)
+        language: String,
+    },
 }
 
 #[tokio::main]
@@ -41,7 +53,8 @@ async fn main() {
     let cli = Cli::parse();
     match &cli.command {
         Commands::Serve { port } => server::serve(*port).await,
-        Commands::Run { name } => runner::run_tests(name.as_deref()).await,
-        Commands::Setup => setup::setup_zed_tasks(),
+        Commands::Run { name }   => runner::run_tests(name.as_deref()).await,
+        Commands::Setup          => setup::setup_zed_tasks(),
+        Commands::SetLang { language } => setup::set_language(language),
     }
 }

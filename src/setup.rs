@@ -2,6 +2,9 @@ use std::fs;
 use std::path::PathBuf;
 use colored::*;
 
+use crate::config::save_default_language;
+use crate::language::{find_language, LANGUAGES};
+
 pub fn setup_zed_tasks() {
     let tasks_json = r#"[
   {
@@ -53,5 +56,31 @@ fn zed_config_dir() -> PathBuf {
         PathBuf::from(home).join(".config").join("zed")
     } else {
         PathBuf::from(".")
+    }
+}
+
+// ─── set-lang ────────────────────────────────────────────────────────────────
+
+pub fn set_language(lang_str: &str) {
+    match find_language(lang_str) {
+        Some(lang) => {
+            save_default_language(lang.name);
+            println!(
+                "{} Default language set to {}",
+                "Done:".green().bold(),
+                lang.display_name.cyan().bold()
+            );
+            println!("New problems will create: {}", lang.solution_file.yellow());
+        }
+        None => {
+            eprintln!("{} Unknown language \"{}\"\n", "Error:".red().bold(), lang_str);
+            eprintln!("Supported languages:");
+            for l in LANGUAGES {
+                let all_names: Vec<&str> = std::iter::once(l.name)
+                    .chain(l.aliases.iter().copied())
+                    .collect();
+                eprintln!("  {:<32} {}", all_names.join(", "), l.display_name);
+            }
+        }
     }
 }
